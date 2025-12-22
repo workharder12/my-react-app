@@ -1,0 +1,102 @@
+:root {
+  font-family: "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 20% 20%, #233143, #0e1420 60%);
+  color: #e8f0ff;
+  min-height: 100vh;
+}
+
+#root {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.card {
+  width: 320px;
+  background: linear-gradient(145deg, #1b2534, #0f1827);
+  border: 1px solid #2f3c52;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  padding: 1.5rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.avatar {
+  width: 100%;
+  border-radius: 14px;
+  border: 2px solid #3f89ff;
+  object-fit: cover;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.role {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: #153058;
+  color: #9ac2ff;
+  font-size: 0.85rem;
+}
+
+.bio {
+  margin: 0;
+  color: #c9d8f2;
+  line-height: 1.5;
+}
+
+/* 定义了一个名为 stats 的网格容器，使用两列等宽布局，允许元素在两列中自动分布，并设置列与列、行与行之间的间距为 0.6rem。*/
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.stats p {
+  background: #141c2b;
+  border: 1px solid #24334a;
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  color: #bcd2ff;
+  font-size: 0.95rem;
+}
+
+.action {
+  margin-top: 0.2rem;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: linear-gradient(90deg, #2f6bff, #7bb6ff);
+  color: #0b1220;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.6rem;
+}
+
+.action.ghost {
+  background: #142032;
+  color: #cfe0ff;
+  border: 1px solid #2f3c52;
+}
+
+.action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(47, 107, 255, 0.35);
+}
+
+

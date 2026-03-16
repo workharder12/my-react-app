@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Box, HStack, VStack, Text } from "@chakra-ui/react";
+import axios from "axios";
 import ChatWindow from "./ChatWindow";
 import MessageInput from "./MessageInput";
 
@@ -9,15 +10,53 @@ function Practice() {
     { id: 2, role: "user", text: "请给我一些前端练习建议。" },
   ]);
   const [inputValue, setInputValue] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const nextText = inputValue.trim();
-    if (!nextText) return;
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now(), role: "user", text: nextText },
-    ]);
+    if (!nextText || isSending) return;
+
+    setIsSending(true);
     setInputValue("");
+
+    const userMessage = { id: Date.now(), role: "user", text: nextText };
+    setMessages((prev) => [...prev, userMessage]);
+
+    try {
+      const response = await axios.post(
+        "/api/chat",
+        { message: nextText },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      const result = response.data;
+      const replyText = result?.reply
+        ? result.reply
+        : result?.data?.message
+          ? `后端已收到: ${result.data.message}`
+          : "后端已收到你的消息。";
+
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, role: "assistant", text: replyText },
+      ]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: "请求失败，请检查后端是否启动。",
+        },
+      ]);
+      console.error("Failed to send chat message:", error);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (

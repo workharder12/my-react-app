@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Box, HStack, Button } from "@chakra-ui/react";
 
-function MessageInput({ value, onChange, onSend }) {
+function MessageInput({ value, onChange, onSend, isCentered = false }) {
   const textAreaRef = useRef(null);
   const [isMultiline, setIsMultiline] = useState(false);
   const singleLineHeight = 24;
@@ -57,13 +57,13 @@ function MessageInput({ value, onChange, onSend }) {
   const actionBtnStyle = {
     h: "40px",
     borderRadius: "xl",
-    bg: "#111316",
+    bg: "#34363a",
     color: "white",
     _hover: { bg: "#1a1d21" },
   };
 
   return (
-    <Box w="100%" pb={8}>
+    <Box w="100%" pb={isCentered ? 0 : 8}>
       <Box
         w="100%"
         maxW="720px"
@@ -113,18 +113,11 @@ function MessageInput({ value, onChange, onSend }) {
           >
             <Button
               {...actionBtnStyle}
-              minW={isMultiline ? "52px" : "96px"}
-              px={isMultiline ? 0 : undefined}
-            >
-              mic
-            </Button>
-            <Button
-              {...actionBtnStyle}
               minW={isMultiline ? "52px" : "110px"}
               px={isMultiline ? 0 : undefined}
               onClick={onSend}
             >
-              {isMultiline ? "↑" : "发送"}
+              {isMultiline ? "发送" : "发送"}
             </Button>
           </HStack>
         </Box>

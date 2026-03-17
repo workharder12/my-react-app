@@ -20,7 +20,16 @@ const isAllowedOrigin = (origin) => {
   if (allowedOrigins.includes(origin)) return true;
 
   // Allow local development ports such as 5174/5175 when Vite auto-switches.
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+    return true;
+  }
+
+  // Allow Vercel preview and production domains.
+  if (/^https?:\/\/([a-z0-9-]+\.)?vercel\.app$/i.test(origin)) {
+    return true;
+  }
+
+  return false;
 };
 
 app.use(

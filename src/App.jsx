@@ -4,6 +4,14 @@ import axios from "axios";
 import SideBar from "./Components/SideBar";
 import ChatPanel from "./Components/ChatPanel";
 
+const DEFAULT_API_BASE =
+  import.meta.env.MODE === "production"
+    ? "https://ai-interviewer-back.onrender.com"
+    : "";
+const API_BASE = import.meta.env.VITE_API_BASE || DEFAULT_API_BASE;
+const getApiUrl = (path) =>
+  API_BASE ? `${API_BASE.replace(/\/$/, "")}${path}` : path;
+
 function App() {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
@@ -33,7 +41,7 @@ function App() {
       //把 messages 数组发给后端
 
       const response = await axios.post(
-        "/api/chat",
+        getApiUrl("/api/chat"),
         { message: nextText, messages: apiMessages },
         {
           headers: {

@@ -8,41 +8,15 @@ const PORT = process.env.PORT || 3001;
 const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY;
 const ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:4173",
-  "http://127.0.0.1:4173",
-];
-
-const isAllowedOrigin = (origin) => {
-  if (!origin) return true;
-  if (allowedOrigins.includes(origin)) return true;
-
-  // Allow local development ports such as 5174/5175 when Vite auto-switches.
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
-    return true;
-  }
-
-  // Allow Vercel preview and production domains.
-  if (/^https?:\/\/([a-z0-9-]+\.)?vercel\.app$/i.test(origin)) {
-    return true;
-  }
-
-  return false;
-};
-
 app.use(
   cors({
-    origin(origin, callback) {
-      callback(null, isAllowedOrigin(origin));
-    },
+    origin: true,
     methods: ["GET", "POST", "OPTIONS"],
     credentials: true,
   }),
 );
 // cors 中间件允许前端跨域访问后端。
-// origin 这里用 isAllowedOrigin 做白名单判断，只有允许的域名才能访问。
+// origin 这里用 isAllowedOrigin 做白名单判断，只有允许的域名才能访问,这里改为全域访问
 // methods 限定允许的请求方式。
 // credentials: true 允许携带 cookie 等凭证。
 

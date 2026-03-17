@@ -89,7 +89,7 @@ function MessageInput({ value, onChange, onSend, isCentered = false }) {
             minW="40px"
             px={0}
             gridColumn="1"
-            gridRow={isMultiline ? "2" : "1"}
+            gridRow={isMultiline ? "3" : "1"}
             alignSelf="end"
             transition="transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)"
           >
@@ -107,7 +107,7 @@ function MessageInput({ value, onChange, onSend, isCentered = false }) {
           <HStack
             spacing={2}
             gridColumn="3"
-            gridRow={isMultiline ? "2" : "1"}
+            gridRow={isMultiline ? "3" : "1"}
             justifySelf="end"
             alignSelf="end"
           >

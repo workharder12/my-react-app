@@ -1,5 +1,5 @@
-import React from "react";
-import { Box, HStack, VStack, Text, Avatar } from "@chakra-ui/react";
+﻿import React from "react";
+import { Box, HStack, VStack, Text } from "@chakra-ui/react";
 
 const NAV_ITEMS = [
   { id: "new", label: "新聊天", icon: "/xinliaotian2.svg" },
@@ -36,7 +36,8 @@ function SideBar() {
             AI-Interviewer
           </Text>
         </HStack>
-        <VStack align="stretch" spacing={2} color="gray.200" fontSize="sm">
+        <VStack align="stretch" spacing={2} color="gray.200" fontSize="sm"> 
+          {/* align控制交叉轴方向,justify控制同轴,vstack的flex方向默认为纵轴,align则控制横轴 */}
           {NAV_ITEMS.map((item) => (
             <HStack key={item.id} spacing={2}>
               <Box
@@ -51,7 +52,27 @@ function SideBar() {
             </HStack>
           ))}
         </VStack>
-        
+
+        <VStack
+          mt="auto" 
+          // 因为vstack整体为纵向flex容器,所以margin-top: auto 会把这个元素的上方空间全部吃掉，所以它会被“挤”到最底部，看起来像是自动贴底。
+          align="stretch"
+          spacing={2}
+          pt={4}
+          borderTop="1px solid"
+          borderColor="#2a2a2a"
+        >
+          <HStack spacing={2} color="gray.200" fontSize="sm">
+            <Box
+              w={ICON_SIZE}
+              h={ICON_SIZE}
+              borderRadius="full"
+              border="1px dashed"
+              borderColor="gray.500"
+            />
+            <Text display={{ base: "none", md: "block" }}>用户登录</Text>
+          </HStack>
+        </VStack>
       </VStack>
     </Box>
   );

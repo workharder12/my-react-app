@@ -1,7 +1,13 @@
 import React, { useEffect, useRef } from "react";
-import { Box, VStack, Text } from "@chakra-ui/react";
+import { Box, HStack, VStack, Text } from "@chakra-ui/react";
+import { keyframes } from "@emotion/react";
 
-function ChatWindow({ messages }) {
+const typingBounce = keyframes`
+  0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+`;
+
+function ChatWindow({ messages, isTyping = false }) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -27,6 +33,35 @@ function ChatWindow({ messages }) {
             </Text>
           </Box>
         ))}
+        {isTyping ? (
+          <Box
+            alignSelf="flex-start"
+            bg="#2f2f2f"
+            px={4}
+            py={3}
+            borderRadius="lg"
+            maxW="100%"
+          >
+            <HStack spacing={2}>
+              <Text fontSize="sm" color="gray.300">
+                正在输入...
+              </Text>
+              <HStack spacing={1}>
+                {["0s", "0.15s", "0.3s"].map((delay) => (
+                  <Box
+                    key={delay}
+                    w="6px"
+                    h="6px"
+                    borderRadius="full"
+                    bg="gray.300"
+                    animation={`${typingBounce} 1s ${delay} infinite`}
+                    // animation 里用 typingBounce 关键帧，1 秒循环一次，并加上不同延迟
+                  />
+                ))}
+              </HStack>
+            </HStack>
+          </Box>
+        ) : null}
       </VStack>
     </Box>
   );

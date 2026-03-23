@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Box, HStack, VStack, Text } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
+import ReactMarkdown from "react-markdown";
 
 const typingBounce = keyframes`
   0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
@@ -9,6 +10,7 @@ const typingBounce = keyframes`
 
 function ChatWindow({ messages, isTyping = false }) {
   const scrollRef = useRef(null);
+  const hasStreaming = messages.some((m) => m.streaming);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -28,12 +30,18 @@ function ChatWindow({ messages, isTyping = false }) {
             borderRadius="lg"
             maxW="100%"
           >
-            <Text fontSize="sm" color="gray.200">
-              {message.text}   
-            </Text>
+            {message.role === "assistant" && !message.streaming ? (
+              <Box fontSize="sm" color="gray.200" className="markdown-body">
+                <ReactMarkdown>{message.text}</ReactMarkdown>
+              </Box>
+            ) : (
+              <Text fontSize="sm" color="gray.200" whiteSpace="pre-wrap">
+                {message.text}
+              </Text>
+            )}
           </Box>
         ))}
-        {isTyping ? (
+        {isTyping && !hasStreaming ? (
           <Box
             alignSelf="flex-start"
             bg="#2f2f2f"

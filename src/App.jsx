@@ -100,14 +100,21 @@ function App() {
         ),
       );
     } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: "assistant",
-          text: "请求失败，请检查后端是否启动。",
-        },
-      ]);
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.streaming) {
+          // 流式中途断开：在已有内容后追加截断提示
+          return prev.map((m) =>
+            m.id === last.id
+              ? { ...m, text: m.text + "\n\n连接中断，回复可能不完整。", streaming: false }
+              : m
+          );
+        }
+        return [
+          ...prev,
+          { id: Date.now() + 1, role: "assistant", text: "请求失败，请检查后端是否启动。" },
+        ];
+      });
       console.error("Failed to send chat message:", error);
     } finally {
       setIsSending(false);

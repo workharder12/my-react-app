@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { HStack } from "@chakra-ui/react";
-import axios from "axios";
 import SideBar from "./Components/SideBar";
 import ChatPanel from "./Components/ChatPanel";
 
@@ -40,29 +39,66 @@ function App() {
       //将历史数组映射成官方文档里的 messages 格式
       //把 messages 数组发给后端
 
-      const response = await axios.post(
-        getApiUrl("/api/chat"),
-        { message: nextText, messages: apiMessages },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
-
-      const result = response.data;
-      const replyText = result?.reply
-        ? result.reply
-        : result?.data?.message
-          ? `后端已收到: ${result.data.message}`
-          : "后端已收到你的消息。";
-      // 如果 result.reply 有值，就用它作为回复内容；否则再去看 result.data.message，最后才用默认文案。
-      // 这样写的好处是：后端返回结构变了也不容易报错。
-
+      const assistantId = Date.now() + 1;
       setMessages((prev) => [
         ...prev,
-        { id: Date.now() + 1, role: "assistant", text: replyText },
+        { id: assistantId, role: "assistant", text: "", streaming: true },
       ]);
+
+      const response = await fetch(getApiUrl("/api/chat"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: nextText, messages: apiMessages }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          const json = line.slice(5).trim();
+          if (json === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(json);
+            if (parsed.error) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? { ...m, text: "请求失败：" + parsed.error, streaming: false }
+                    : m,
+                ),
+              );
+              break;
+            }
+            if (parsed.text) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? { ...m, text: m.text + parsed.text }
+                    : m,
+                ),
+              );
+            }
+          } catch (_) {}
+        }
+      }
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId ? { ...m, streaming: false } : m,
+        ),
+      );
     } catch (error) {
       setMessages((prev) => [
         ...prev,

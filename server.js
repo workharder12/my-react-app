@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import axios from "axios";
 import rateLimit from "express-rate-limit";
+import { encode } from "gpt-tokenizer";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -11,6 +12,60 @@ const ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 
 const MAX_CONCURRENT = 20;
 let activeRequests = 0;
+
+const TOKEN_THRESHOLD = 46848; // 75% of (128000 - 65536)
+const RECENT_MESSAGES_KEEP = 8;
+
+function countMessagesTokens(messages) {
+  return messages.reduce((sum, msg) => {
+    return sum + encode(msg.role).length + encode(msg.content).length + 4;
+  }, 0);
+}
+
+async function summarizeHistory(messages) {
+  const summaryPrompt = [
+    {
+      role: "user",
+      content:
+        "你是一名专业的技术面试记录员。请根据以下对话历史，用中文生成一段简洁的面试进展摘要，格式要求：" +
+        "1. 面试官已询问了哪些技术问题（列举具体问题）；" +
+        "2. 候选人展现出对哪些技术的掌握；" +
+        "3. 哪些方面尚待深入挖掘。" +
+        "摘要控制在200字以内，保持面试官视角。\n\n对话历史：\n" +
+        messages
+          .map((m) => `${m.role === "user" ? "候选人" : "面试官"}：${m.content}`)
+          .join("\n"),
+    },
+  ];
+
+  const resp = await axios.post(
+    ZHIPU_BASE_URL,
+    {
+      model: "glm-5",
+      messages: summaryPrompt,
+      max_tokens: 512,
+      temperature: 0.3,
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${ZHIPU_API_KEY}`,
+      },
+      timeout: 30000,
+    },
+  );
+
+  const raw = resp.data?.choices?.[0]?.message?.content;
+  const text = Array.isArray(raw)
+    ? raw
+        .map((item) => (typeof item === "string" ? item : item?.text || ""))
+        .join("")
+        .trim()
+    : typeof raw === "string"
+      ? raw.trim()
+      : "";
+  return text;
+}
 
 app.use(
   cors({
@@ -89,12 +144,29 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     return res.status(500).json({ error: "Missing ZHIPU_API_KEY in .env" });
   }
 
+  let finalMessages = payloadMessages;
+  if (countMessagesTokens(payloadMessages) >= TOKEN_THRESHOLD) {
+    try {
+      const summary = await summarizeHistory(payloadMessages);
+      if (summary) {
+        const recentMessages = payloadMessages.slice(-RECENT_MESSAGES_KEEP);
+        finalMessages = [
+          { role: "system", content: `【面试进展摘要】${summary}` },
+          ...recentMessages,
+        ];
+        console.log(`[Token Monitor] 触发摘要压缩，原始消息数: ${payloadMessages.length}，压缩后: ${finalMessages.length}`);
+      }
+    } catch (summaryError) {
+      console.error("[Token Monitor] 摘要生成失败，降级使用原始消息:", summaryError.message);
+    }
+  }
+
   try {
     const glmResponse = await axios.post(
       ZHIPU_BASE_URL,
       {
         model: "glm-5",
-        messages: payloadMessages,
+        messages: finalMessages,
         thinking: {
           type: "enabled",
         },

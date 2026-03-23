@@ -20,7 +20,7 @@ function App() {
 
   const handleSend = async () => {
     const nextText = inputValue.trim();
-    if (!nextText || isSending) return; 
+    if (!nextText || isSending) return;
     // 如果用户没发送内容或者正在请求中就退出该函数
 
     setHasSent(true);
@@ -56,8 +56,8 @@ function App() {
         : result?.data?.message
           ? `后端已收到: ${result.data.message}`
           : "后端已收到你的消息。";
-          // 如果 result.reply 有值，就用它作为回复内容；否则再去看 result.data.message，最后才用默认文案。
-          // 这样写的好处是：后端返回结构变了也不容易报错。
+      // 如果 result.reply 有值，就用它作为回复内容；否则再去看 result.data.message，最后才用默认文案。
+      // 这样写的好处是：后端返回结构变了也不容易报错。
 
       setMessages((prev) => [
         ...prev,

@@ -2,11 +2,15 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import axios from "axios";
+import rateLimit from "express-rate-limit";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY;
 const ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+
+const MAX_CONCURRENT = 20;
+let activeRequests = 0;
 
 app.use(
   cors({
@@ -22,11 +26,24 @@ app.use(
 
 app.use(express.json());
 
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "请求过于频繁，请一分钟后再试" },
+});
+
 app.get("/", (req, res) => {
   res.send("Express server is running.");
 });
 
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", chatLimiter, async (req, res) => {
+  if (activeRequests >= MAX_CONCURRENT) {
+    return res.status(503).json({ error: "服务繁忙，请稍后重试" });
+  }
+  activeRequests++;
+
   const { message, messages } = req.body ?? {};
 
   const normalizedMessages = Array.isArray(messages)
@@ -126,6 +143,8 @@ app.post("/api/chat", async (req, res) => {
     return res.status(500).json({
       error: apiError,
     });
+  } finally {
+    activeRequests--;
   }
 });
 

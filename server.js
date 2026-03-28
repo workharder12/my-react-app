@@ -13,6 +13,11 @@ const ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const MAX_CONCURRENT = 20;
 let activeRequests = 0;
 
+// 统一管理并发槽的释放，避免在多个地方散落 activeRequests--
+function releaseSlot() {
+  if (activeRequests > 0) activeRequests--;
+}
+
 const TOKEN_THRESHOLD = 46848; // 75% of (128000 - 65536)
 const RECENT_MESSAGES_KEEP = 8;
 
@@ -167,7 +172,20 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');//禁止代理/浏览器缓存，确保每块数据实时到达客户端
   res.setHeader('Connection', 'keep-alive');//保持 TCP 连接不断开，让服务端可以持续推送数据
   res.flushHeaders();//立即将响应头发送给客户端，不等待响应体。这样客户端可以马上知道「连接已建立，等待数据」
-  
+
+  // axiosController 用于取消对智谱 API 的 axios 请求
+  // 当前端断开连接时，我们通过它来中止已经发出的 HTTP 流请求，避免继续消耗 Token
+  const axiosController = new AbortController();
+  // clientAborted 是一个标志位，防止前端断开后 data 事件里的残余回调继续向已关闭的 res 写数据
+  let clientAborted = false;
+
+  // req.on('close') 是 Node.js 的原生事件：当客户端（浏览器）关闭连接时触发
+  // 无论是用户关闭标签页、切换路由、还是前端调用了 AbortController.abort()，这里都会触发
+  req.on('close', () => {
+    clientAborted = true;             // 置标志，阻断后续 data 回调继续写 res
+    axiosController.abort();          // 向智谱 API 发出取消信号，axios 流立刻中止，不再消耗 Token
+    releaseSlot();                    // 释放并发槽，让下一个用户的请求可以进来
+  });
 
   try {
     const glmResponse = await axios.post(
@@ -189,10 +207,16 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
         },
         timeout: 60000,
         responseType: 'stream',
+        signal: axiosController.signal,
+        // signal 挂载到 axios：当 axiosController.abort() 被调用时，axios 立刻中断这个 HTTP 请求
+        // 智谱 API 的 TCP 连接被关闭，不再有新的 Token 被消耗
       },
     );
 
     glmResponse.data.on('data', (chunk) => {
+      // clientAborted=true 说明前端已断开，axios 流虽然可能还有残余 data 事件在队列里
+      // 这里提前短路，不再尝试向已关闭的 res 写数据，避免 write after end 错误
+      if (clientAborted) return;
       const lines = chunk.toString().split('\n').filter(Boolean);
       for (const line of lines) {
         if (!line.startsWith('data:')) continue;
@@ -222,18 +246,24 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     });
 
     glmResponse.data.on('end', () => {
+      if (clientAborted) return; // 前端已断开，res 早已关闭，不重复操作
       res.write('data: [DONE]\n\n');
       res.end();
-      activeRequests--;
+      releaseSlot();
     });
     //流结束了，再发一次 [DONE] 保险，然后关闭连接，把「当前并发数」减一，腾出位置给下一个用户。
     glmResponse.data.on('error', (err) => {
+      if (clientAborted) return;
       console.error('GLM-5 stream error:', err.message);
       res.end();
-      activeRequests--;
+      releaseSlot();
     });
     //流传输出错，打印错误日志，强制关闭连接，释放并发槽。
   } catch (error) {
+    // axios 被 abort() 取消时抛出的错误码是 ERR_CANCELED
+    // 这是我们主动取消的，不是真正的 API 故障，静默处理即可
+    if (error.code === 'ERR_CANCELED' || error.name === 'CanceledError') return;
+
     const apiError =
       error.response?.data?.error?.message ||
       error.response?.data?.message ||
@@ -243,10 +273,12 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
 
     console.error('GLM-5 API error:', error.response?.data || error.message);
 
-    res.write(`data: ${JSON.stringify({ error: apiError })}\n\n`);
-    res.write('data: [DONE]\n\n');
-    res.end();
-    activeRequests--;
+    if (!clientAborted) {
+      res.write(`data: ${JSON.stringify({ error: apiError })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
+    releaseSlot();
     //把错误信息发给前端，再发结束信号，关闭连接，释放并发槽。
   }
 });

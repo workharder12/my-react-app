@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { HStack } from "@chakra-ui/react";
 import SideBar from "./Components/SideBar";
 import ChatPanel from "./Components/ChatPanel";
@@ -17,10 +17,37 @@ function App() {
   const [isSending, setIsSending] = useState(false);
   const [hasSent, setHasSent] = useState(false);
 
+  // isSendingRef 是同步锁：state 更新是异步批处理的，同一事件循环内两次点击读到的 isSending 都可能是 false
+  // 用 ref 则是同步读写，第一次点击立刻把它设为 true，第二次点击读到的就是 true，竞态彻底消失
+  const isSendingRef = useRef(false);
+  // abortControllerRef 保存当前请求的控制器，组件卸载或新请求发出时用它来取消旧请求
+  const abortControllerRef = useRef(null);
+
+  // 组件卸载时（用户切换路由/关闭页面）自动调用 cleanup
+  // 它会调用 abort()，让 fetch 抛出 AbortError，while 循环立刻退出，内存释放
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleSend = async () => {
     const nextText = inputValue.trim();
-    if (!nextText || isSending) return;
-    // 如果用户没发送内容或者正在请求中就退出该函数
+    if (!nextText || isSendingRef.current) return;
+    // isSendingRef.current 是同步读取，不存在竞态窗口
+    isSendingRef.current = true;
+
+    // 如果上一个请求还没结束（理论上不会，但防御性取消）
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    // 每次发请求都创建一个新的控制器，把它存入 ref 供后续取消使用
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    //第一次请求：发出 → 被 abort() 取消 → 进入 finally 收尾
+    //第二次请求：取消完第一次后立刻发出 → 正常进行
 
     setHasSent(true);
     setIsSending(true);
@@ -49,6 +76,9 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: nextText, messages: apiMessages }),
+        signal: controller.signal,
+        // signal 是关键：当 controller.abort() 被调用时，浏览器立刻在网络层切断这个请求
+        // fetch 会抛出 AbortError，下面的 reader.read() 也随之 reject，while 循环退出
       });
 
       if (!response.ok) {
@@ -100,6 +130,11 @@ function App() {
         ),
       );
     } catch (error) {
+      // AbortError = 用户主动取消（切换路由 / 组件卸载），静默退出，不显示错误提示
+      // 此时组件可能已经卸载，不需要也不应该再 setState
+      if (error.name === "AbortError") return;
+
+      // 真正的网络错误才展示给用户
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.streaming) {
@@ -117,6 +152,13 @@ function App() {
       });
       console.error("Failed to send chat message:", error);
     } finally {
+      // 只有当 ref 还指向本次请求的 controller 时才清理，防止新请求替换后误清
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+      //第一次请求死的时候，别把第二次请求的控制器也一起带走。 这是一个防御性检查，保护后来的请求不被误清。
+      isSendingRef.current = false;
+      //重置同步锁  finally 块的特性保证无论请求成功、报错、还是被取消，这一行都一定会执行
       setIsSending(false);
     }
   };

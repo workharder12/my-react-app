@@ -115,11 +115,13 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
           content: item.content.trim(),
         }))
     : [];
-        //如果你传了 messages，它就把里面不合格的删掉（比如没有 role、没有 content、内容是空的）
+        //.filter是过滤无效信息,保留满足以下全部条件的信息,item存在并且item.role和item.content是字符串类型,并且content非空
+        //.map提取标准字段,每条消息只保留role和content字段,丢弃其他多余字段
+        //兜底处理:如果messages不是数组就返回空数组
   if (
     normalizedMessages.length === 0 &&
     (!message || typeof message !== "string" || !message.trim())
-    //然后把内容两边的空格去掉，变成'干净的对话数组
+    
   ) {
     return res
       .status(400)
@@ -160,11 +162,12 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       console.error("[Token Monitor] 摘要生成失败，降级使用原始消息:", summaryError.message);
     }
   }
-
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
+  //初始化SSE连接
+  res.setHeader('Content-Type', 'text/event-stream');//告诉浏览器这是 SSE 流，不是普通 HTTP 响应
+  res.setHeader('Cache-Control', 'no-cache');//禁止代理/浏览器缓存，确保每块数据实时到达客户端
+  res.setHeader('Connection', 'keep-alive');//保持 TCP 连接不断开，让服务端可以持续推送数据
+  res.flushHeaders();//立即将响应头发送给客户端，不等待响应体。这样客户端可以马上知道「连接已建立，等待数据」
+  
 
   try {
     const glmResponse = await axios.post(
@@ -193,7 +196,7 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       const lines = chunk.toString().split('\n').filter(Boolean);
       for (const line of lines) {
         if (!line.startsWith('data:')) continue;
-        const json = line.slice(5).trim();
+        const json = line.slice(5).trim();//slice(5)表示从第五个字符开始,包括第五个字符
         if (json === '[DONE]') {
           res.write('data: [DONE]\n\n');
           return;
@@ -201,16 +204,19 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
         try {
           const parsed = JSON.parse(json);
           const raw = parsed.choices?.[0]?.delta?.content;
+          //把 JSON 字符串解析成对象，然后从里面找到这次新增的文字内容（delta.content 就是 AI 这一步新说的话）。
           const text = Array.isArray(raw)
             ? raw.map((i) => (typeof i === 'string' ? i : i?.text || '')).join('')
             : typeof raw === 'string'
               ? raw
               : '';
+              //智谱 API 返回的内容格式不太统一——有时候是一个字符串，有时候是一个数组。
+              // 这里做了兼容：是数组就拼接，是字符串就直接用，啥都不是就给个空字符串。
           if (text) {
             res.write(`data: ${JSON.stringify({ text })}\n\n`);
           }
         } catch (_) {
-          // 忽略非 JSON 行
+          // 如果某行解析 JSON 出错，静默忽略，继续处理下一行。
         }
       }
     });
@@ -220,18 +226,20 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       res.end();
       activeRequests--;
     });
-
+    //流结束了，再发一次 [DONE] 保险，然后关闭连接，把「当前并发数」减一，腾出位置给下一个用户。
     glmResponse.data.on('error', (err) => {
       console.error('GLM-5 stream error:', err.message);
       res.end();
       activeRequests--;
     });
+    //流传输出错，打印错误日志，强制关闭连接，释放并发槽。
   } catch (error) {
     const apiError =
       error.response?.data?.error?.message ||
       error.response?.data?.message ||
       error.message ||
       'Failed to call GLM-5 API';
+      //如果 axios 发请求就失败了（比如网络断了、API Key 错了），按优先级从错误对象里找最有用的那条错误描述。
 
     console.error('GLM-5 API error:', error.response?.data || error.message);
 
@@ -239,6 +247,7 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     res.write('data: [DONE]\n\n');
     res.end();
     activeRequests--;
+    //把错误信息发给前端，再发结束信号，关闭连接，释放并发槽。
   }
 });
 

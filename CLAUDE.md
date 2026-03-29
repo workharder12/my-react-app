@@ -196,6 +196,22 @@ ChatWindow 渲染：streaming=false 时用 ReactMarkdown 渲染
 ```
 
 ---
+用户输入
+  ↓
+前端 fetch (POST, 带历史)
+  ↓
+server.js
+  ├─ token 超阈值 → 先压缩历史
+  └─ axios stream → 智谱 GLM-5
+                        ↓ 逐块返回
+  ← data: {"text":"你"} ←
+  ← data: {"text":"好"} ←
+  ← data: [DONE]        ←
+  ↓
+前端逐块解析，实时追加到消息
+  ↓
+streaming: false → Markdown 渲染完毕
+
 
 ## 环境变量
 

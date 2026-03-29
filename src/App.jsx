@@ -10,6 +10,7 @@ const DEFAULT_API_BASE =
 const API_BASE = import.meta.env.VITE_API_BASE || DEFAULT_API_BASE;
 const getApiUrl = (path) =>
   API_BASE ? `${API_BASE.replace(/\/$/, "")}${path}` : path;
+//有 API_BASE 时：把它和 path 拼在一起，replace(/\/$/, "") 是去掉末尾多余的斜杠，避免出现双斜杠
 
 function App() {
   const [messages, setMessages] = useState([]);
@@ -86,26 +87,34 @@ function App() {
       }
 
       const reader = response.body.getReader();
+      // 浏览器 Fetch API 读取流的唯一方式，没有替代品
       const decoder = new TextDecoder();
+      //网络传输是二进制字节，必须用它转成字符串，固定搭配
       let buffer = "";
+      //网络数据分块到达，buffer 防止一行 JSON 被截成两半，是处理流的标准防御手段
 
       while (true) {
         const { done, value } = await reader.read();
+        //每次读一块数据
         if (done) break;
+         // 流结束了就跳出循环
         buffer += decoder.decode(value, { stream: true });
+        //把字节解码，追加到缓冲区
         const lines = buffer.split("\n");
         buffer = lines.pop();
+        //pop() 这里是"把可能残缺的最后一行暂存起来，留给下次处理"
         for (const line of lines) {
           if (!line.startsWith("data:")) continue;
           const json = line.slice(5).trim();
           if (json === "[DONE]") break;
+          //后端发 [DONE] 表示结束
           try {
             const parsed = JSON.parse(json);
             if (parsed.error) {
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
-                    ? { ...m, text: "请求失败：" + parsed.error, streaming: false }
+                    ? { ...m, text: "请求失败：" + parsed.error, streaming: false }//把请求失败追加到 AI 消息后面
                     : m,
                 ),
               );
@@ -115,7 +124,7 @@ function App() {
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
-                    ? { ...m, text: m.text + parsed.text }
+                    ? { ...m, text: m.text + parsed.text }//把新内容追加到 AI 消息后面
                     : m,
                 ),
               );
@@ -127,6 +136,7 @@ function App() {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId ? { ...m, streaming: false } : m,
+      //streaming: false → ChatWindow 切换为 Markdown 渲染，打字动画消失
         ),
       );
     } catch (error) {
@@ -148,6 +158,7 @@ function App() {
         return [
           ...prev,
           { id: Date.now() + 1, role: "assistant", text: "请求失败，请检查后端是否启动。" },
+          // - 完全没收到数据 → 显示"请检查后端是否启动"
         ];
       });
       console.error("Failed to send chat message:", error);

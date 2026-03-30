@@ -3,14 +3,7 @@ import { HStack } from "@chakra-ui/react";
 import SideBar from "./Components/SideBar";
 import ChatPanel from "./Components/ChatPanel";
 
-const DEFAULT_API_BASE =
-  import.meta.env.MODE === "production"
-    ? "https://ai-interviewer-back.onrender.com"
-    : "";
-const API_BASE = import.meta.env.VITE_API_BASE || DEFAULT_API_BASE;
-const getApiUrl = (path) =>
-  API_BASE ? `${API_BASE.replace(/\/$/, "")}${path}` : path;
-//有 API_BASE 时：把它和 path 拼在一起，replace(/\/$/, "") 是去掉末尾多余的斜杠，避免出现双斜杠
+const getApiUrl = (path) => path;
 
 function App() {
   const [messages, setMessages] = useState([]);
